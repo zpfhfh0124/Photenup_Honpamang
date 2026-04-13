@@ -5,9 +5,13 @@
 
 #include "IImageWrapper.h"
 #include "IImageWrapperModule.h"
+#include "IMediaCaptureSupport.h"
+#include "MediaCaptureSupport.h"
 #include "MediaPlayer.h"
 #include "MediaTexture.h"
+#include "Engine/Canvas.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Kismet/KismetRenderingLibrary.h"
 
 // Sets default values for this component's properties
 UWebcamCapture::UWebcamCapture()
@@ -73,16 +77,28 @@ bool UWebcamCapture::OpenCamera()
 		return false;
 	}
 	
+	// 연결된 웹캠 리스트 로드
+	TArray<FMediaCaptureDeviceInfo> devices;
+	MediaCaptureSupport::EnumerateVideoCaptureDevices(devices);
+	
+	if (devices.Num() == 0)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[WebcamCapture] 웹캠을 찾지 못했다."));
+		OnCaptureError.Broadcast(TEXT("웹캠을 찾지 못함."));
+		return false;
+	}
+	
+	// 찾은 디바이스 목록 로그 출력
+	for (int32 i = 0; i < devices.Num(); i++)
+	{
+		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Device %d: %s -> %s"), i, *devices[i].DisplayName.ToString(), *devices[i].Url);
+	}
+	
+	// 디바이스 URL이 설정되었으면 사용, 아니면 첫 번째 디바이스 사용.
 	FString url = DeviceURL;
 	if (url.IsEmpty())
 	{
-#if PLATFORM_WINDOWS
-		url = TEXT("vidcap://0");
-#elif PLATFORM_MAC
-		url = TEXT("avcapture://0");
-#elif PLATFORM_LINUX
-		url = TEXT("v4l2:///dev/video0");
-#endif
+		url = devices[0].Url;
 	}
 	
 	UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Opening: %s"), *url);
@@ -109,7 +125,7 @@ void UWebcamCapture::RequestCapture()
 	
 	if (State != ECaptureState::Idle)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("WebcamCapture Busy, 리퀘스트 무시"));
+		UE_LOG(LogTemp, Warning, TEXT("[WebcamCapture] Busy, 리퀘스트 무시"));
 		return;
 	}
 	
@@ -121,7 +137,7 @@ void UWebcamCapture::RequestCapture()
 	{
 		State = ECaptureState::WaitingDelay;
 		DelayRemaining = CaptureDelay;
-		UE_LOG(LogTemp, Log, TEXT("WebcamCapture Capturing in %.1fs"), CaptureDelay);
+		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Capturing in %.1fs"), CaptureDelay);
 	}
 }
 
@@ -133,7 +149,7 @@ void UWebcamCapture::CaptureNow()
 	if (CaptureToJpeg(jpegBytes))
 	{
 		LastJpegBytes = MoveTemp(jpegBytes);
-		UE_LOG(LogTemp, Log, TEXT("WebcamCapture Captured: %d bytes"), LastJpegBytes.Num());
+		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Captured: %d bytes"), LastJpegBytes.Num());
 		OnFrameCaptured.Broadcast(LastJpegBytes);
 	}
 	else
@@ -150,57 +166,67 @@ void UWebcamCapture::CancelCapture()
 	{
 		State = ECaptureState::Idle;
 		DelayRemaining = 0.0f;
-		UE_LOG(LogTemp, Log, TEXT("WebcamCapture Cancelled"));
+		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Cancelled"));
 	}
 }
 
 //** Frame -> JPEG
 bool UWebcamCapture::CaptureToJpeg(TArray<uint8>& OutBytes)
 {
-	if (!RenderTarget) return false;
+	if (!MediaPlayer || !RenderTarget) return false;
 	
+	// 웹캠 화면을 RT에 그리기
+	UCanvas* canvas;
+	FVector2D canvasSize;
+	FDrawToRenderTargetContext context;
+	
+	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, RenderTarget, canvas, canvasSize, context);
+	
+	canvas->K2_DrawTexture(
+		MediaTexture,
+		FVector2D::ZeroVector,
+		canvasSize,
+		FVector2D::ZeroVector,
+		FVector2D::UnitVector);
+	
+	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, context);
+	
+	// ReadPixels
 	FRenderTarget* rt = RenderTarget->GameThread_GetRenderTargetResource();
 	if (!rt) return false;
 	
-	// 픽셀 읽기
-	const int32 w = RenderTarget->SizeX;
-	const int32 h = RenderTarget->SizeY;
 	TArray<FColor> pixels;
-	pixels.SetNum(w * h);
-	
 	if (!rt->ReadPixels(pixels))
 	{
-		UE_LOG(LogTemp, Error, TEXT("WebcamCapture ReadPixels failed"));
+		UE_LOG(LogTemp, Error, TEXT("[WebcamCapture] ReadPixels failed"));
 		return false;
 	}
 	
-	// RGBA 바이트로 변환
-	TArray<uint8> raw;
-	raw.SetNum(w * h);
-	for (int32 i = 0; i <pixels.Num(); i++)
+	const int32 w = RenderTarget->SizeX;
+	const int32 h = RenderTarget->SizeY;
+	
+	if (pixels.Num() != w * h)
 	{
-		raw[i * 4 + 0] = pixels[i].R;
-		raw[i * 4 + 1] = pixels[i].B;
-		raw[i * 4 + 2] = pixels[i].G;
-		raw[i * 4 + 3] = pixels[i].A;
+		UE_LOG(LogTemp, Error, TEXT("[WebcamCapture] Pixel count mismatch: %d vs %d"), pixels.Num(), w * h);
+		return false;
 	}
 	
-	// JPEG 인코딩
-	IImageWrapperModule& imgMod = FModuleManager::LoadModuleChecked<IImageWrapperModule>(TEXT("ImageWrapper"));
+	// JPEG 인코딩 - FColor 배열을 직접 전달
+	IImageWrapperModule& imgMod = FModuleManager::LoadModuleChecked<IImageWrapperModule>("ImageWrapper");
 	TSharedPtr<IImageWrapper> wrapper = imgMod.CreateImageWrapper(EImageFormat::JPEG);
 	
-	if (!wrapper->SetRaw(raw.GetData(), raw.Num(), w, h, ERGBFormat::RGBA, 8))
+	if (!wrapper->SetRaw(
+		pixels.GetData(),
+		pixels.Num() * sizeof(FColor),
+		w, h,
+		ERGBFormat::BGRA,
+		8))
 	{
-		UE_LOG(LogTemp, Error, TEXT("WebcamCapture SetRaw failed"));
 		return false;
 	}
 	
-	const TArray64<uint8> compressed = wrapper->GetCompressed(JpegQuality);
-	if (compressed.Num() == 0)
-	{
-		UE_LOG(LogTemp, Error, TEXT("WebcamCapture JPEG compression failed"));
-		return false;
-	}
+	const TArray64<uint8>& compressed = wrapper->GetCompressed(JpegQuality);
+	if (compressed.Num() == 0) return false;
 	
 	OutBytes.SetNum(compressed.Num());
 	FMemory::Memcpy(OutBytes.GetData(), compressed.GetData(), compressed.Num());
