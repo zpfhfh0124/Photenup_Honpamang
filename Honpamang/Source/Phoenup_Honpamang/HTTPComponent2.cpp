@@ -12,12 +12,12 @@ void UHTTPComponent2::BeginPlay()
 }
 
 //////////////////////////////////////////////////////
-// 서버 체크 (GET /)
+// 서버 체크
 void UHTTPComponent2::CheckServer()
 {
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 
-    Request->SetURL("http://172.16.30.124:8099/");
+    Request->SetURL(BaseURL + "/");
     Request->SetVerb("GET");
 
     Request->OnProcessRequestComplete().BindUObject(this, &UHTTPComponent2::OnResponseReceived);
@@ -25,7 +25,7 @@ void UHTTPComponent2::CheckServer()
 }
 
 //////////////////////////////////////////////////////
-// 이미지 업로드 (POST /upload_image)
+// 파일 경로 업로드
 void UHTTPComponent2::UploadImage(const FString& FilePath)
 {
     TArray<uint8> FileData;
@@ -36,11 +36,18 @@ void UHTTPComponent2::UploadImage(const FString& FilePath)
         return;
     }
 
-    FString Boundary = "----UE4Boundary7MA4YWxkTrZu0gW";
+    UploadImageBytes(FileData);
+}
+
+//////////////////////////////////////////////////////
+// 🔥 바이트 업로드 (핵심)
+void UHTTPComponent2::UploadImageBytes(const TArray<uint8>& ImageBytes)
+{
+    FString Boundary = "----UEBoundary123456789";
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 
-    Request->SetURL("http://172.16.30.124:8099/upload_image");
+    Request->SetURL(BaseURL + "/upload_image");
     Request->SetVerb("POST");
 
     FString ContentType = "multipart/form-data; boundary=" + Boundary;
@@ -49,18 +56,18 @@ void UHTTPComponent2::UploadImage(const FString& FilePath)
     TArray<uint8> Body;
 
     FString HeaderPart = "--" + Boundary + "\r\n";
-    HeaderPart += "Content-Disposition: form-data; name=\"file\"; filename=\"image.png\"\r\n";
-    HeaderPart += "Content-Type: application/octet-stream\r\n\r\n";
+    HeaderPart += "Content-Disposition: form-data; name=\"file\"; filename=\"capture.jpg\"\r\n";
+    HeaderPart += "Content-Type: image/jpeg\r\n\r\n";
 
     FString FooterPart = "\r\n--" + Boundary + "--\r\n";
 
-    // Header 추가
+    // Header
     Body.Append((uint8*)TCHAR_TO_UTF8(*HeaderPart), HeaderPart.Len());
 
-    // 파일 데이터 추가
-    Body.Append(FileData);
+    // 🔥 이미지 바이트
+    Body.Append(ImageBytes);
 
-    // Footer 추가
+    // Footer
     Body.Append((uint8*)TCHAR_TO_UTF8(*FooterPart), FooterPart.Len());
 
     Request->SetContent(Body);
@@ -70,7 +77,7 @@ void UHTTPComponent2::UploadImage(const FString& FilePath)
 }
 
 //////////////////////////////////////////////////////
-// 공통 응답 처리
+// 응답 처리
 void UHTTPComponent2::OnResponseReceived(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
 {
     if (!bWasSuccessful || !Response.IsValid())
@@ -80,9 +87,20 @@ void UHTTPComponent2::OnResponseReceived(FHttpRequestPtr Request, FHttpResponseP
     }
 
     int32 StatusCode = Response->GetResponseCode();
-    FString ResponseString = Response->GetContentAsString();
+
+    FString ResponseString;
+    FFileHelper::BufferToString(
+        ResponseString,
+        Response->GetContent().GetData(),
+        Response->GetContentLength()
+    );
+
+    LastResponse = ResponseString;
 
     UE_LOG(LogTemp, Warning, TEXT("Status Code: %d"), StatusCode);
     UE_LOG(LogTemp, Warning, TEXT("Response: %s"), *ResponseString);
+
+    // 블루프린트로 전달
+    OnHttpResponse.Broadcast(ResponseString);
 }
 
