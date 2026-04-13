@@ -8,7 +8,8 @@ public class Phoenup_Honpamang : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 	
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "MediaAssets" });
+		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "MediaAssets", "HTTP", "Json", "JsonUtilities" });
+
 
 		PrivateDependencyModuleNames.AddRange(new string[] {  });
 
