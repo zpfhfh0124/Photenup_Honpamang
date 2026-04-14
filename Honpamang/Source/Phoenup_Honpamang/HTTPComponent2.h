@@ -5,6 +5,8 @@
 #include "Http.h"
 #include "HTTPComponent2.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHttpResponse, const FString&, Response);
+
 UCLASS(ClassGroup=(HTTP), meta=(BlueprintSpawnableComponent))
 class PHOENUP_HONPAMANG_API UHTTPComponent2 : public UActorComponent
 {
@@ -19,14 +21,28 @@ protected:
 public:
 
     // 서버 상태 체크 (GET /)
-    UFUNCTION(BlueprintCallable)
+    UFUNCTION(BlueprintCallable, Category="HTTP")
     void CheckServer();
 
-    // 이미지 업로드
-    UFUNCTION(BlueprintCallable)
+    // 파일 경로로 업로드
+    UFUNCTION(BlueprintCallable, Category="HTTP")
     void UploadImage(const FString& FilePath);
+
+    // 🔥 바이트로 업로드 (핵심)
+    UFUNCTION(BlueprintCallable, Category="HTTP")
+    void UploadImageBytes(const TArray<uint8>& ImageBytes);
+
+    // 마지막 응답
+    UPROPERTY(BlueprintReadOnly, Category="HTTP")
+    FString LastResponse;
+
+    // 블루프린트 이벤트
+    UPROPERTY(BlueprintAssignable, Category="HTTP")
+    FOnHttpResponse OnHttpResponse;
 
 private:
 
     void OnResponseReceived(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+
+    FString BaseURL = "http://172.16.30.124:8099";
 };
