@@ -23,7 +23,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "PoseGame")
 	void StartPoseRound();
 
-	// 블루프린트에서 UI 갱신을 위해 사용할 이벤트들
+	// 블루프린트에서 UI 갱신을 위해 사용할 이벤트들SD
 	UFUNCTION(BlueprintImplementableEvent, Category = "PoseGame")
 	void OnUpdateUI(int32 PlayerIndex, int32 PoseIndex); // 현재 플레이어와 포즈 안내 
 
