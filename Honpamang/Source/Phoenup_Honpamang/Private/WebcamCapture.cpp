@@ -12,6 +12,8 @@
 #include "Engine/Canvas.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Kismet/KismetRenderingLibrary.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 
 // Sets default values for this component's properties
 UWebcamCapture::UWebcamCapture()
@@ -151,6 +153,9 @@ void UWebcamCapture::CaptureNow()
 		LastJpegBytes = MoveTemp(jpegBytes);
 		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Captured: %d bytes"), LastJpegBytes.Num());
 		OnFrameCaptured.Broadcast(LastJpegBytes);
+		
+		// 자동 저장
+		if (bAutoSave) SaveCaptureToFile();
 	}
 	else
 	{
@@ -231,4 +236,37 @@ bool UWebcamCapture::CaptureToJpeg(TArray<uint8>& OutBytes)
 	OutBytes.SetNum(compressed.Num());
 	FMemory::Memcpy(OutBytes.GetData(), compressed.GetData(), compressed.Num());
 	return true;
+}
+
+FString UWebcamCapture::SaveCaptureToFile()
+{
+	if (LastJpegBytes.Num() == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[WebcamCapture] No image to save"));
+		return FString();
+	}
+	
+	//  저장 폴더 결정
+	FString dir = SaveDirectoryPath;
+	if (dir.IsEmpty()) dir = FPaths::ProjectSavedDir() / TEXT("Captures");
+	
+	// 폴더 생성
+	IFileManager::Get().MakeDirectory(*dir, true);
+	
+	// 파일명: 날짜_시간.jpg
+	const FString timeStemp = FDateTime::UtcNow().ToString(TEXT("%Y-%m-%d_%H-%M-%S"));
+	const FString filePath = dir / (timeStemp + TEXT(".jpg"));
+	
+	// 저장 
+	if (FFileHelper::SaveArrayToFile(LastJpegBytes, *filePath))
+	{
+		LastSavedFilePath = filePath;
+		UE_LOG(LogTemp, Log, TEXT("[WebcamCapture] Saved: %s"), *filePath);
+		return filePath;
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[WebcamCapture] Could not save file: %s"), *filePath);
+		return FString();
+	}
 }
