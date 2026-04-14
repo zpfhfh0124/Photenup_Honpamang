@@ -48,7 +48,7 @@ public:
 	
 	// 캡쳐 시 로컬 자동 저장
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Webcam")
-	bool bAutoSave = false;
+	bool bAutoSave = true;
 	
 	// 저장 폴더 경로 (비워두면 Saved/Captures/)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Webcam")
