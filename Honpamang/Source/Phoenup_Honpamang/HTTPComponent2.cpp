@@ -26,7 +26,7 @@ void UHTTPComponent2::CheckServer()
 
 //////////////////////////////////////////////////////
 // 파일 경로 업로드
-void UHTTPComponent2::UploadImage(const FString& FilePath)
+void UHTTPComponent2::UploadImage(const FString& FilePath, int32 PoseIndex)
 {
     TArray<uint8> FileData;
 
@@ -36,18 +36,19 @@ void UHTTPComponent2::UploadImage(const FString& FilePath)
         return;
     }
 
-    UploadImageBytes(FileData);
+    UploadImageWithIndex(FileData, PoseIndex);
 }
 
 //////////////////////////////////////////////////////
 // 🔥 바이트 업로드 (핵심)
-void UHTTPComponent2::UploadImageBytes(const TArray<uint8>& ImageBytes)
+void UHTTPComponent2::UploadImageWithIndex(const TArray<uint8>& ImageBytes, int32 PoseIndex)
 {
     FString Boundary = "----UEBoundary123456789";
 
     TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
 
-    Request->SetURL(BaseURL + "/upload_image");
+    // AI 예측 경로로 설정
+    Request->SetURL(BaseURL + "/predict"); 
     Request->SetVerb("POST");
 
     FString ContentType = "multipart/form-data; boundary=" + Boundary;
@@ -55,19 +56,23 @@ void UHTTPComponent2::UploadImageBytes(const TArray<uint8>& ImageBytes)
 
     TArray<uint8> Body;
 
+    // --- Part 1: Pose Index (텍스트 데이터) ---
+    FString IndexPart = "--" + Boundary + "\r\n";
+    IndexPart += "Content-Disposition: form-data; name=\"pose_index\"\r\n\r\n";
+    IndexPart += FString::FromInt(PoseIndex) + "\r\n";
+    Body.Append((uint8*)TCHAR_TO_UTF8(*IndexPart), IndexPart.Len());
+
+    // --- Part 2: Image File (바이너리 데이터) ---
     FString HeaderPart = "--" + Boundary + "\r\n";
     HeaderPart += "Content-Disposition: form-data; name=\"file\"; filename=\"capture.jpg\"\r\n";
     HeaderPart += "Content-Type: image/jpeg\r\n\r\n";
-
-    FString FooterPart = "\r\n--" + Boundary + "--\r\n";
-
-    // Header
     Body.Append((uint8*)TCHAR_TO_UTF8(*HeaderPart), HeaderPart.Len());
 
-    // 🔥 이미지 바이트
+    // 실제 이미지 바이트 추가
     Body.Append(ImageBytes);
 
-    // Footer
+    // --- Part 3: Footer (마무리) ---
+    FString FooterPart = "\r\n--" + Boundary + "--\r\n";
     Body.Append((uint8*)TCHAR_TO_UTF8(*FooterPart), FooterPart.Len());
 
     Request->SetContent(Body);
@@ -88,13 +93,8 @@ void UHTTPComponent2::OnResponseReceived(FHttpRequestPtr Request, FHttpResponseP
 
     int32 StatusCode = Response->GetResponseCode();
 
-    FString ResponseString;
-    FFileHelper::BufferToString(
-        ResponseString,
-        Response->GetContent().GetData(),
-        Response->GetContentLength()
-    );
-
+    FString ResponseString = Response->GetContentAsString();
+    
     LastResponse = ResponseString;
 
     UE_LOG(LogTemp, Warning, TEXT("Status Code: %d"), StatusCode);
