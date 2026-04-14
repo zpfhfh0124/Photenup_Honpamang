@@ -42,7 +42,7 @@ private:
 	UHTTPComponent2* HTTP;
 
 	// 게임 상태 변수 [cite: 30, 45]
-	int32 TotalPlayers = 1;
+	
 	int32 CurrentTurnIndex = 0;
 	int32 TotalPoseCount = 11;
 	float PoseDuration = 5.0f;
@@ -59,4 +59,8 @@ private:
 
 	UFUNCTION()
 	void OnAIResponse(const FString& Response);
+	
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 TotalPlayers;
 };
