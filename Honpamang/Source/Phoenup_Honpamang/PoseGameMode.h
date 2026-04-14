@@ -15,29 +15,43 @@ class PHOENUP_HONPAMANG_API APoseGameMode : public AGameModeBase
 public:
 	APoseGameMode();
 
-	// 🔥 카운트 끝나면 호출 (WBP에서)
-	UFUNCTION(BlueprintCallable)
+	// 1. 게임 시작 전 인원 설정 (WBP의 SCENE 02에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "PoseGame")
+	void SetTotalPlayers(int32 Count);
+
+	// 2. 카운트다운 완료 후 라운드 시작 (WBP의 SCENE 06에서 호출)
+	UFUNCTION(BlueprintCallable, Category = "PoseGame")
 	void StartPoseRound();
+
+	// 블루프린트에서 UI 갱신을 위해 사용할 이벤트들
+	UFUNCTION(BlueprintImplementableEvent, Category = "PoseGame")
+	void OnUpdateUI(int32 PlayerIndex, int32 PoseIndex); // 현재 플레이어와 포즈 안내 
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "PoseGame")
+	void OnRoundFinished(bool bIsAllFinished); // 라운드 종료 및 다음 사람 대기 [cite: 81, 85]
 
 protected:
 	virtual void BeginPlay() override;
 
 private:
-
-	// 컴포넌트 참조
-	UPROPERTY()
+	// 컴포넌트 참조 (Private이지만 블루프린트 접근 허용)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PoseGame", meta = (AllowPrivateAccess = "true"))
 	UWebcamCapture* Webcam;
 
-	UPROPERTY()
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "PoseGame", meta = (AllowPrivateAccess = "true"))
 	UHTTPComponent2* HTTP;
 
-	// 현재 포즈 인덱스
-	int32 CurrentPoseIndex;
+	// 게임 상태 변수 [cite: 30, 45]
+	int32 TotalPlayers = 1;
+	int32 CurrentTurnIndex = 0;
+	int32 TotalPoseCount = 11;
+	float PoseDuration = 5.0f;
 
-	// 타이머
+	UPROPERTY()
+	TArray<float> PlayerScores; // 플레이어별 점수 저장 [cite: 44]
+
 	FTimerHandle PoseTimerHandle;
 
-	// 내부 흐름 함수
 	void OnPoseTimeEnd();
 
 	UFUNCTION()
@@ -45,8 +59,4 @@ private:
 
 	UFUNCTION()
 	void OnAIResponse(const FString& Response);
-
-	// 설정
-	int32 TotalPoseCount = 11;
-	float PoseDuration = 5.0f;
 };
