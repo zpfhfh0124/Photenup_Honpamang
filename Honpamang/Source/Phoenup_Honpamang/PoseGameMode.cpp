@@ -32,10 +32,10 @@ void APoseGameMode::SetTotalPlayers(int32 Count)
 // 2. 라운드 시작 (카운트다운 3초 뒤 실행) 
 void APoseGameMode::StartPoseRound()
 {
-    int32 RandomPose = FMath::RandRange(0, TotalPoseCount - 1);
+    CurrentPoseIndex = FMath::RandRange(0, TotalPoseCount - 1);
     
     // UI에 현재 누가 어떤 포즈를 해야 하는지 알림 
-    OnUpdateUI(CurrentTurnIndex, RandomPose);
+    OnUpdateUI(CurrentTurnIndex, CurrentPoseIndex);
 
     // 5초 타이머 작동 
     GetWorld()->GetTimerManager().SetTimer(PoseTimerHandle, this, &APoseGameMode::OnPoseTimeEnd, PoseDuration, false);
@@ -50,7 +50,10 @@ void APoseGameMode::OnPoseTimeEnd()
 // 캡처 완료 -> AI 전송
 void APoseGameMode::OnCaptured(const TArray<uint8>& ImageBytes)
 {
-    if (HTTP) HTTP->UploadImageBytes(ImageBytes);
+    // 🔥 수정됨: 이미지 바이트와 저장해둔 인덱스를 함께 보냅니다.
+    HTTP->UploadImageWithIndex(ImageBytes, CurrentPoseIndex);
+        
+    UE_LOG(LogTemp, Warning, TEXT("AI 서버로 포즈 %d번 전송 시도"), CurrentPoseIndex);
 }
 
 // AI 응답 처리 및 턴 교체 로직 [cite: 77, 83, 84, 85]

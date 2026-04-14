@@ -46,6 +46,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Webcam", meta = (ClampMin = "0.0", ClampMax="10.0"))
 	float CaptureDelay = 2.0f;
 	
+	// 캡쳐 시 로컬 자동 저장
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Webcam")
+	bool bAutoSave = true;
+	
+	// 저장 폴더 경로 (비워두면 Saved/Captures/)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Webcam")
+	FString SaveDirectoryPath;
+	
 	//** 이벤트
 	// 프레임 캡쳐 완료 (JPEG 바이트 전달)
 	UPROPERTY(BlueprintAssignable, Category = "Webcam|Events")
@@ -102,6 +110,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Webcam")
 	UMediaTexture* GetPreviewTexture() const { return MediaTexture; }
 	
+	// JPEG 바이트를 로컬 파일로 저장, 저장된 경로 변환
+	UFUNCTION(BlueprintCallable, Category = "Webcam")
+	FString SaveCaptureToFile();
+	
+	// 최종 저장 파일 경로
+	UFUNCTION(BlueprintPure, Category = "Webcam")
+	FString GetLastSavedPath() const { return LastSavedFilePath; }
+	
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
@@ -122,6 +138,8 @@ private:
 	UTextureRenderTarget2D* RenderTarget = nullptr;
 	
 	TArray<uint8> LastJpegBytes;
+	
+	FString LastSavedFilePath;
 	
 	void InitMedia();
 	bool CaptureToJpeg(TArray<uint8>& OutBytes);

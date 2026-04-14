@@ -26,12 +26,11 @@ public:
 
     // 파일 경로로 업로드
     UFUNCTION(BlueprintCallable, Category="HTTP")
-    void UploadImage(const FString& FilePath);
+    void UploadImage(const FString& FilePath, int32 PoseIndex);
 
     // 🔥 바이트로 업로드 (핵심)
     UFUNCTION(BlueprintCallable, Category="HTTP")
-    void UploadImageBytes(const TArray<uint8>& ImageBytes);
-
+    void UploadImageWithIndex(const TArray<uint8>& ImageBytes, int32 PoseIndex);
     // 마지막 응답
     UPROPERTY(BlueprintReadOnly, Category="HTTP")
     FString LastResponse;

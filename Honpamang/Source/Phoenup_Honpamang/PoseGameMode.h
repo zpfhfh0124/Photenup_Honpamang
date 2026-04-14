@@ -46,6 +46,7 @@ private:
 	int32 CurrentTurnIndex = 0;
 	int32 TotalPoseCount = 11;
 	float PoseDuration = 5.0f;
+	int32 CurrentPoseIndex = 0;
 
 	UPROPERTY()
 	TArray<float> PlayerScores; // 플레이어별 점수 저장 [cite: 44]
